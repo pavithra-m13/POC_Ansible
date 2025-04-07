@@ -1,0 +1,184 @@
+---
+- name: Setup Jenkins from Ansible inside a container
+  hosts: localhost
+  gather_facts: false
+  vars:
+    jenkins_url: "http://172.27.222.147:9091"
+    jenkins_home: "/var/jenkins_home"
+  vars_files:
+        - /ansible/secret_vars.yml  # Reference the encrypted file
+
+
+  tasks:
+    - name: Ensure Jenkins container is running
+      shell: docker start jenkins-container || true
+
+    - name: Download Jenkins CLI jar
+      get_url:
+        url: "{{ jenkins_url }}/jnlpJars/jenkins-cli.jar"
+        dest: "/tmp/jenkins-cli.jar"
+        mode: '0440'
+
+    - name: Copy Jenkins CLI jar to Jenkins container
+      shell: docker cp /tmp/jenkins-cli.jar jenkins-container:/var/jenkins_home/jenkins-cli.jar
+
+    - name: Set permissions for Jenkins CLI inside container
+      shell: docker exec jenkins-container chmod 755 /var/jenkins_home/jenkins-cli.jar
+
+    - name: Create authentication credentials file in container
+      shell: >
+          docker exec jenkins-container bash -c 'echo "{{ jenkins_admin_username }}:{{ jenkins_admin_password }}" > /var/jenkins_home/jenkins-cli-auth && chmod 600 /var/jenkins_home/jenkins-cli-auth'
+
+    - name: Verify Jenkins CLI jar exists
+      stat:
+        path: /tmp/jenkins-cli.jar
+      register: cli_jar_stat
+
+    - name: Show Jenkins CLI jar info
+      debug:
+        var: cli_jar_stat.stat
+
+    - name: Make Jenkins CLI jar executable
+      file:
+        path: /tmp/jenkins-cli.jar
+        mode: '0755'
+
+    - name: Check permissions of Jenkins CLI jar
+      stat:
+        path: /tmp/jenkins-cli.jar
+      register: cli_jar_stat_perm
+
+    - name: Show Jenkins CLI jar permissions
+      debug:
+        msg: "Permissions are {{ cli_jar_stat_perm.stat.mode }}"
+
+    - name: Update apk repositories
+      shell: apk update
+      ignore_errors: yes
+
+    - name: Install python3-pip
+      apk:
+        name: python3 py3-pip
+        state: present
+
+    - name: Install Python packages (docker, requests)
+      pip:
+        name:
+          - docker
+          - requests
+        executable: pip3
+      become: yes
+
+    - name: Ensure Jenkins container is running
+      docker_container:
+        name: jenkins-container
+        state: started
+
+    - name: Install Java 17 in Jenkins container (using apt)
+      shell: |
+        docker exec jenkins-container apt-get update -y
+        docker exec jenkins-container apt-get install -y openjdk-17-jdk
+
+    - name: Verify Java version in Jenkins container
+      shell: docker exec jenkins-container java -version
+      register: java_version
+      ignore_errors: yes
+          
+    - name: Install Jenkins Plugins using Jenkins CLI
+      shell: |
+        docker exec jenkins-container java -jar /var/jenkins_home/jenkins-cli.jar \
+          -s {{ jenkins_url }} \
+          -auth {{ jenkins_admin_username }}:{{ jenkins_admin_password }} install-plugin git workflow-aggregator -deploy
+      register: plugin_installation_result
+      retries: 3
+      delay: 10
+      ignore_errors: yes
+
+    - name: Display Plugin Installation Result
+      debug:
+        var: plugin_installation_result
+      when: plugin_installation_result.rc == 0
+
+    # Restart Jenkins using Docker instead of Jenkins API
+    - name: Restart Jenkins container
+      shell: docker restart jenkins-container
+
+    - name: wait for jenkins to restart
+      pause:
+        seconds: 10
+    
+    - name: Create job configuration XML
+      copy:
+        dest: /tmp/job_config.xml
+        content: |
+          <?xml version='1.1' encoding='UTF-8'?>
+          <flow-definition plugin='workflow-job@2.40'>
+            <description>Automated Pipeline Job</description>
+            <keepDependencies>false</keepDependencies>
+            <definition class='org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition' plugin='workflow-cps@2.90'>
+              <scm class='hudson.plugins.git.GitSCM' plugin='git@4.7.1'>
+                <configVersion>2</configVersion>
+                <userRemoteConfigs>
+                  <hudson.plugins.git.UserRemoteConfig>
+                    <url>https://github.com/pavithra-m13/Docker_terraform_Pipeline.git</url>
+                  </hudson.plugins.git.UserRemoteConfig>
+                </userRemoteConfigs>
+                <branches>
+                  <hudson.plugins.git.BranchSpec>
+                    <name>*/master</name>
+                  </hudson.plugins.git.BranchSpec>
+                </branches>
+                <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+                <submoduleCfg class='empty-list'/>
+                <extensions/>
+              </scm>
+              <scriptPath>JenkinsFile</scriptPath>
+              <lightweight>true</lightweight>
+            </definition>
+            <disabled>false</disabled>
+          </flow-definition>
+
+    - name: Copy job configuration to Jenkins container
+      shell: docker cp /tmp/job_config.xml jenkins-container:/var/jenkins_home/job_config.xml
+
+    - name: Create Jenkins job using CLI
+      shell: |
+        docker exec jenkins-container bash -c "java -jar /var/jenkins_home/jenkins-cli.jar \
+        -s {{ jenkins_url }} \
+        -auth @/var/jenkins_home/jenkins-cli-auth \
+        create-job myPipelinepaviiith < /var/jenkins_home/job_config.xml"
+      register: job_creation_result
+      ignore_errors: yes
+
+    - name: Display job creation result
+      debug:
+        var: job_creation_result
+
+
+    - name: List all jobs in Jenkins
+      shell: |
+        docker exec jenkins-container java -jar /var/jenkins_home/jenkins-cli.jar \
+          -s {{ jenkins_url }} \
+          -auth @/var/jenkins_home/jenkins-cli-auth \
+          list-jobs
+      register: jenkins_jobs
+      ignore_errors: yes
+
+    - name: Display existing jobs
+      debug:
+        var: jenkins_jobs.stdout_lines
+
+    - name: Trigger build using Jenkins CLI
+      shell: |
+        docker exec jenkins-container java -jar /var/jenkins_home/jenkins-cli.jar \
+          -s {{ jenkins_url }} \
+          -auth @/var/jenkins_home/jenkins-cli-auth \
+          build myPipelinepaviiith -s
+      register: cli_build_result
+      ignore_errors: yes
+      when: jenkins_jobs.stdout is defined and jenkins_jobs.stdout.find('myPipelinepaviiith') != -1
+
+    - name: Display build result
+      debug:
+        var: cli_build_result
+      when: cli_build_result is defined
