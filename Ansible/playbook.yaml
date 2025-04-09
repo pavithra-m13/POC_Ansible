@@ -1,9 +1,8 @@
 ---
 - name: Setup Jenkins from Ansible inside a container
   hosts: localhost
-  gather_facts: false
   vars:
-    jenkins_url: "http://172.27.222.147:9091"
+    jenkins_url: "http://jenkins-container:9091"
     jenkins_home: "/var/jenkins_home"
   vars_files:
         - /ansible/secret_vars.yml  # Reference the encrypted file
@@ -11,7 +10,7 @@
 
   tasks:
     - name: Ensure Jenkins container is running
-      shell: docker start jenkins-container || true
+      shell: docker start jenkins-container 
 
     - name: Download Jenkins CLI jar
       get_url:
@@ -38,46 +37,8 @@
       debug:
         var: cli_jar_stat.stat
 
-    - name: Make Jenkins CLI jar executable
-      file:
-        path: /tmp/jenkins-cli.jar
-        mode: '0755'
-
-    - name: Check permissions of Jenkins CLI jar
-      stat:
-        path: /tmp/jenkins-cli.jar
-      register: cli_jar_stat_perm
-
-    - name: Show Jenkins CLI jar permissions
-      debug:
-        msg: "Permissions are {{ cli_jar_stat_perm.stat.mode }}"
-
-    - name: Update apk repositories
-      shell: apk update
-      ignore_errors: yes
-
-    - name: Install python3-pip
-      apk:
-        name: python3 py3-pip
-        state: present
-
-    - name: Install Python packages (docker, requests)
-      pip:
-        name:
-          - docker
-          - requests
-        executable: pip3
-      become: yes
-
     - name: Ensure Jenkins container is running
-      docker_container:
-        name: jenkins-container
-        state: started
-
-    - name: Install Java 17 in Jenkins container (using apt)
-      shell: |
-        docker exec jenkins-container apt-get update -y
-        docker exec jenkins-container apt-get install -y openjdk-17-jdk
+      shell: docker start jenkins-container 
 
     - name: Verify Java version in Jenkins container
       shell: docker exec jenkins-container java -version
@@ -88,7 +49,8 @@
       shell: |
         docker exec jenkins-container java -jar /var/jenkins_home/jenkins-cli.jar \
           -s {{ jenkins_url }} \
-          -auth {{ jenkins_admin_username }}:{{ jenkins_admin_password }} install-plugin git workflow-aggregator -deploy
+          -auth {{ jenkins_admin_username }}:{{ jenkins_admin_password }} \
+          install-plugin git workflow-aggregator sonar -deploy
       register: plugin_installation_result
       retries: 3
       delay: 10
@@ -99,7 +61,7 @@
         var: plugin_installation_result
       when: plugin_installation_result.rc == 0
 
-    # Restart Jenkins using Docker instead of Jenkins API
+    # Restart Jenkins using Docker 
     - name: Restart Jenkins container
       shell: docker restart jenkins-container
 
