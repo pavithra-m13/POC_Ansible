@@ -22,18 +22,19 @@ pipeline {
             }
         }
 
-       stage('SonarQube Analysis') {
-          steps {
+            stage('SonarQube Analysis') {
+            steps {
                 withSonarQubeEnv("${SONARQUBE_ENV}") {
                     withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_TOKEN')]) {
-                    sh '''
-                      export PATH=$PATH:/opt/sonar-scanner-5.0.1.3006-linux/bin
-                      sonar-scanner -Dsonar.projectKey=pavithra -Dsonar.sources=. -Dsonar.token=$SONAR_TOKEN
-                    '''                    
+                        sh '''
+                            export PATH=$PATH:/opt/sonar-scanner-5.0.1.3006-linux/bin
+                            sonar-scanner -Dsonar.projectKey=pavithra -Dsonar.sources=. -Dsonar.token=$SONAR_TOKEN
+                        '''
                     }
                 }
             }
         }
+
         stage('Quality Gate') {
             steps {
                 timeout(time: 2, unit: 'MINUTES') { // Optional: timeout if quality gate takes too long
