@@ -11,8 +11,7 @@ pipeline {
         SONARQUBE_PROJECT_KEY = 'pavithra'
         SONARQUBE_PROJECT_NAME = 'pavithra'
         SONARQUBE_ENV = 'sonar-qube'
-        SONAR_SCANNER_HOME = '/opt/sonar-scanner-5.0.1.3006-linux'
-        PATH = "$PATH:$SONAR_SCANNER_HOME/bin"
+   
     }
 
 
