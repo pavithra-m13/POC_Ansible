@@ -26,16 +26,12 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv("${SONARQUBE_ENV}") {
-                    withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_TOKEN')]) {
-                        sh """
-                            ${SONAR_SCANNER_HOME}/bin/sonar-scanner \\
-                            -Dsonar.projectKey=${SONARQUBE_PROJECT_KEY} \\
-                            -Dsonar.sources=. \\
-                            -Dsonar.token=\$SONAR_TOKEN
-                        """
+                    withSonarQubeEnv('sonar-qube') {
+                        withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_TOKEN')]) {
+                            sh '/opt/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner -Dsonar.projectKey=pavithra -Dsonar.sources=. -Dsonar.token=${SONAR_TOKEN}'
+                        }
                     }
-                }
+
             }
         }
 
