@@ -13,19 +13,8 @@
     - name: Ensure Jenkins container is running
       shell: docker start jenkins-container || true
 
-    - name: Check Docker availability
-      shell: which docker
-      register: docker_path
-      delegate_to: localhost
-
-    - name: Debug Docker Path
-      debug:
-        var: docker_path.stdout
-
-
     - name: Ensure Jenkins init.groovy.d exists
       shell: docker exec jenkins-container bash -c 'mkdir -p /var/jenkins_home/init.groovy.d'
-
 
     - name: Template Groovy admin creation script
       template:
