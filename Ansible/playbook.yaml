@@ -90,10 +90,6 @@
         var: cli_jar_stat.stat
 
 
-    - name: Update apk repositories
-      shell: apk update
-      ignore_errors: yes
-
     - name: Verify Java version in Jenkins container
       shell: docker exec jenkins-container java -version
       register: java_version
@@ -114,7 +110,7 @@
         var: plugin_installation_result
       when: plugin_installation_result.rc == 0
 
-    # Restart Jenkins using Docker instead of Jenkins API
+    # Restart Jenkins using Docker 
     - name: Restart Jenkins container
       shell: docker restart jenkins-container
 
