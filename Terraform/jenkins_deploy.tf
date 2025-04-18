@@ -36,10 +36,6 @@ resource "docker_container" "jenkins_server" {
     container_path = "/var/jenkins_home/init.groovy.d/disable_wizard.groovy"
   }
 
-  volumes {
-    host_path      = abspath("${path.module}/init.groovy.d/basic_security.groovy")
-    container_path = "/var/jenkins_home/init.groovy.d/basic_security.groovy"
-  }
 
   privileged = true
   restart    = "always"
