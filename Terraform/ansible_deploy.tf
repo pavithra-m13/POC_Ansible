@@ -5,8 +5,6 @@ resource "docker_image" "ansible"{
 resource "docker_container" "ansible_server" {
   image = docker_image.ansible.image_id
   name  = "ansible-container"
-  tty   = true
-  stdin_open = true
   command = ["sh", "-c", "apk update && apk add --no-cache py3-pip && pip3 install --upgrade ansible-core && sleep infinity"]
   volumes {
     host_path      = "/var/run/docker.sock"
