@@ -3,7 +3,7 @@
   hosts: localhost
   gather_facts: false
   vars:
-    jenkins_url: "http://172.27.222.147:9091"
+    jenkins_url: "http://localhost:9091"
     jenkins_home: "/var/jenkins_home"
   vars_files:
         - /ansible/secret_vars.yml  # Reference the encrypted file
@@ -50,7 +50,7 @@
 
     - name: Wait for Jenkins to be up
       wait_for:
-        host: "172.27.222.147"
+        host: localhost
         port: 9091
         state: started
         delay: 10
